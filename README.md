@@ -33,13 +33,6 @@ bug bounty hunter — cantina & immunefi
 
 ---
 
-### `[!]` Research & PoCs
-
-- **[lint-rce-repro](https://github.com/pwnhaven-afk/lint-rce-repro)** — PoC: `lint-action` `pull_request_target` fork-checkout RCE mechanism
-- **[rig-victim-sdks](https://github.com/pwnhaven-afk/rig-victim-sdks)** — PoC rig replicating the Uniswap/sdks `claude-code-review.yml` fork-guard miss
-
----
-
 ### `[#]` Arsenal
 
 [![Arsenal](https://skillicons.dev/icons?i=solidity,python,js,ts,bash,docker,aws&theme=dark)](https://skillicons.dev)
