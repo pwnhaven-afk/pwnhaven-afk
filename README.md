@@ -17,7 +17,6 @@
 
 [![Cantina](https://img.shields.io/badge/Cantina-@cryptomania-00FF41?style=for-the-badge)](https://cantina.xyz/u/cryptomania)
 [![Immunefi](https://img.shields.io/badge/Immunefi-@cryptomania1337-2088FF?style=for-the-badge)](https://immunefi.com/profile/cryptomania1337)
-[![Visitors](https://komarev.com/ghpvc/?username=pwnhaven-afk&color=00FF41&style=for-the-badge&abbreviated=true)](https://github.com/pwnhaven-afk)
 
 </div>
 
