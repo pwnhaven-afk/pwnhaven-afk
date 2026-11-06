@@ -28,7 +28,7 @@
 ```bash
 ┌──(cryptomania㉿blumelabs)-[~]
 └─$ whoami
-bug bounty hunter — cantina & immunefi
+Underpaid developer by day, hunter of duplicate reports by night.
 ```
 
 ---
