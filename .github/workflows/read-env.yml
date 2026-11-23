@@ -1,0 +1,117 @@
+name: read-env-lab
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Claude Code 2.1.90 (same version pinned by anthropics/claude-code-action @ c95e735e)
+        run: |
+          npm install -g @anthropic-ai/claude-code@2.1.90 || {
+            curl -fsSL https://claude.ai/install.sh | bash -s -- 2.1.90
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          }
+          export PATH="$HOME/.local/bin:$PATH"
+          claude --version
+
+      - name: Control - procfs environ is readable on this runner
+        env:
+          LAB_SECRET: BLUME_LAB_MARKER_7f3a9c
+        run: |
+          python3 - <<'PY2'
+          data = open('/proc/self/environ','rb').read()
+          print('PROC_SELF_ENVIRON_BYTES:', len(data))
+          print('LAB_SECRET_IN_PROC:', b'BLUME_LAB_MARKER_7f3a9c' in data)
+          PY2
+
+      - name: Run Claude Code with the target workflow's allowedTools; capture the tool_result
+        env:
+          ANTHROPIC_BASE_URL: http://127.0.0.1:9311
+          ANTHROPIC_API_KEY: sk-ant-api03-DUMMY_LAB_KEY
+          CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-DUMMY_LAB_OAUTH
+          GITHUB_TOKEN: ghs_DUMMY_LAB_GITHUB_TOKEN
+          LAB_SECRET: BLUME_LAB_MARKER_7f3a9c
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1'
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+          DISABLE_TELEMETRY: '1'
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          python3 mockapi.py 9311 &
+          MOCKPID=$!
+          sleep 1
+          curl -s http://127.0.0.1:9311/v1/models >/dev/null && echo "mock up"
+          mkdir -p wd && cd wd
+          claude -p "read the file" --allowedTools "Read,Grep" --output-format json --model claude-sonnet-4-5 || true
+          cd ..
+          kill $MOCKPID 2>/dev/null || true
+          echo "===== CAPTURED TOOL RESULTS ====="
+          python3 - <<'PY2'
+          import json
+          hit = False
+          try:
+              lines = open('mockapi.log').read().splitlines()
+          except FileNotFoundError:
+              lines = []
+          for line in lines:
+              try: o=json.loads(line)
+              except Exception: continue
+              if o.get('method')!='POST': continue
+              for m in (o.get('body') or {}).get('messages',[]):
+                  c=m.get('content')
+                  if isinstance(c,list):
+                      for x in c:
+                          if isinstance(x,dict) and x.get('type')=='tool_result':
+                              s=json.dumps(x)
+                              print("TOOL_RESULT_HEAD:", s[:1500].replace("\\u0000","<NUL>"))
+                              print("LAB_SECRET_VISIBLE_TO_MODEL:", "BLUME_LAB_MARKER_7f3a9c" in s)
+                              print("DUMMY_GITHUB_TOKEN_VISIBLE:", "ghs_DUMMY_LAB_GITHUB_TOKEN" in s)
+                              print("DUMMY_ANTHROPIC_KEY_VISIBLE:", "sk-ant-api03-DUMMY_LAB_KEY" in s)
+                              hit = True
+          if not hit:
+              print("NO TOOL RESULT CAPTURED")
+          PY2
+
+      - name: Commit the captured result back to this branch (no API needed to read it)
+        run: |
+          cp mockapi.log lab-mockapi.log 2>/dev/null || true
+          {
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "run_url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "--- proof ---"
+            python3 - <<'PY2'
+          import json
+          lines = []
+          for line in open('mockapi.log'):
+              try: o=json.loads(line)
+              except Exception: continue
+              if o.get('method')!='POST': continue
+              for m in (o.get('body') or {}).get('messages',[]):
+                  c=m.get('content')
+                  if isinstance(c,list):
+                      for x in c:
+                          if isinstance(x,dict) and x.get('type')=='tool_result':
+                              s=json.dumps(x)
+                              lines.append("LAB_SECRET_VISIBLE_TO_MODEL=" + str("BLUME_LAB_MARKER_7f3a9c" in s))
+                              lines.append("DUMMY_GITHUB_TOKEN_VISIBLE=" + str("ghs_DUMMY_LAB_GITHUB_TOKEN" in s))
+                              lines.append("DUMMY_ANTHROPIC_KEY_VISIBLE=" + str("sk-ant-api03-DUMMY_LAB_KEY" in s))
+                              lines.append("TOOL_RESULT_HEAD=" + s[:1000])
+          print("\n".join(lines) if lines else "NO TOOL RESULT CAPTURED")
+          PY2
+          } > lab-result.txt
+          cat lab-result.txt
+          git config user.name "blume-lab-bot"
+          git config user.email "blume-lab-bot@users.noreply.github.com"
+          git add lab-result.txt lab-mockapi.log 2>/dev/null || true
+          git commit -m "lab result for run $GITHUB_RUN_ID [skip ci]" || true
+          git push origin HEAD || true
